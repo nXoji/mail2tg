@@ -3,9 +3,13 @@ from config import Config
 from email_service import EmailService
 from telegram_service import TelegramService
 from formatter import Formatter
+from logger import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger(__name__)
 
 def main():
-    print("Starting mail2tg...")
+    logger.info("Starting mail2tg...")
 
     email_service = EmailService()
     telegram_service = TelegramService()
@@ -16,8 +20,6 @@ def main():
             email_service.disconnect()
 
             if unseen_emails:
-                print(f"Found {len(unseen_emails)} new email(s). Processing...")
-
                 for email_data in unseen_emails:
                     email = Formatter.format_telegram_message(email_data)
                     telegram_service.send_message(email)
