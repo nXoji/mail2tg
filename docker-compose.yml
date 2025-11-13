@@ -1,0 +1,8 @@
+services:
+  mail2tg:
+    build: .
+    container_name: mail2tg
+    env_file: .env
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
