@@ -17,12 +17,15 @@ def main():
     while True:
         if email_service.connect():
             unseen_emails = email_service.get_unseen_emails()
-            email_service.disconnect()
 
             if unseen_emails:
                 for email_data in unseen_emails:
                     email = Formatter.format_telegram_message(email_data)
-                    telegram_service.send_message(email)
+
+                    if telegram_service.send_message(email):
+                        email_service.mark_as_read(email_data['id'])
+
+        email_service.disconnect()
 
         time.sleep(Config.CHECK_INTERVAL)
 

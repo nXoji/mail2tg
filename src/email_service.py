@@ -55,7 +55,6 @@ class EmailService:
                 email_data = self._fetch_email(email_id)
                 if email_data:
                     emails.append(email_data)
-                    self._mark_as_read(email_id)
 
             if emails:
                 self.logger.info(f"Found {len(emails)} new email(s)")
@@ -66,7 +65,7 @@ class EmailService:
             return []
 
     def _fetch_email(self, email_id: bytes) -> Optional[dict]:
-        status, msg_data = self.mail.fetch(email_id, '(RFC822)')
+        status, msg_data = self.mail.fetch(email_id, '(BODY.PEEK[])')
         if status != 'OK':
             self.logger.warning(f"Failed to fetch email {email_id}: status {status}")
             return None
@@ -80,7 +79,7 @@ class EmailService:
             'body': Formatter.get_body(msg)
         }
 
-    def _mark_as_read(self, email_id: bytes):
+    def mark_as_read(self, email_id: bytes):
         try:
             self.mail.store(email_id, '+FLAGS', '\\Seen')
             self.logger.debug(f"Marked email {email_id} as read.")
