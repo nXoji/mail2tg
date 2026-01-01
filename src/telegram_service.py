@@ -1,3 +1,4 @@
+import time
 import requests
 from config import Config
 from logger import get_logger
@@ -16,14 +17,25 @@ class TelegramService:
             'parse_mode': 'HTML'
         }
 
-        try:
-            r = requests.post(self.API_URL, data=payload, timeout=20)
-            if r.ok:
-                self.logger.info("Message sent successfully")
-                return True
-            else:
-                self.logger.error(f"Telegram API error: {r.status_code} {r.text}")
-                return False
-        except Exception as e:
-            self.logger.error(f"Failed to send message to Telegram: {e}")
-            return False
+        for attempt in range(3):
+            try:
+                r = requests.post(self.API_URL, data=payload, timeout=20)
+
+                if r.ok:
+                    self.logger.info("Message sent successfully")
+                    return True
+                elif r.status_code == 429:
+                    retry_after = int(r.json().get('parameters', {}).get('retry_after', 5))
+                    self.logger.warning(f"Rate limited by Telegram API. Retrying after {retry_after} seconds.")
+                    time.sleep(retry_after + 1)
+                    continue
+                else:
+                    self.logger.error(f"Telegram API error: {r.status_code} {r.text}")
+                    return False
+
+            except Exception as e:
+                self.logger.error(f"Failed to send message to Telegram (attempt {attempt+1}/3): {e}")
+                time.sleep(2)
+
+        self.logger.error("Failed to send message after 3 attempts")
+        return False
