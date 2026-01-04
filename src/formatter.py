@@ -1,21 +1,87 @@
+import re
 import html
 from email.header import decode_header
+from bs4 import BeautifulSoup
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 class Formatter:
     @staticmethod
     def get_body(msg) -> str:
         if msg.is_multipart():
             for part in msg.walk():
+                if part.get_content_type() == "text/html":
+                    html_content = Formatter._decode_payload(part)
+                    return Formatter.clean_html(html_content)
+
+            for part in msg.walk():
                 if part.get_content_type() == "text/plain":
-                    payload = part.get_payload(decode=True)
-                    charset = part.get_content_charset() or 'utf-8'
-                    return payload.decode(charset, errors='ignore')
+                    return html.escape(Formatter._decode_payload(part))
         else:
-            payload = msg.get_payload(decode=True)
-            charset = msg.get_content_charset() or 'utf-8'
-            return payload.decode(charset, errors='ignore')
+            content = Formatter._decode_payload(msg)
+            if msg.get_content_type() == "text/html":
+                return Formatter.clean_html(content)
+
+            return html.escape(content)
 
         return "(No text content)"
+
+    @staticmethod
+    def _decode_payload(part) -> str:
+        payload = part.get_payload(decode=True)
+        charset = part.get_content_charset() or 'utf-8'
+        return payload.decode(charset, errors='ignore')
+
+    @staticmethod
+    def clean_html(html_content: str) -> str:
+        try:
+            soup = BeautifulSoup(html_content, "html.parser")
+
+            for tag in soup(["script", "style", "meta", "head", "title", "link"]):
+                tag.decompose()
+
+            for a in soup.find_all("a", href=True):
+                text = a.get_text(strip=True)
+                href = a["href"]
+
+                if not href or href.startswith(("#", "javascript:")) or not text:
+                    continue
+
+                safe_text = html.escape(text)
+                safe_href = html.escape(href)
+
+                a.replace_with(f"##LINK_START##{safe_href}##TEXT_START##{safe_text}##LINK_END##")
+
+            for br in soup.find_all("br"):
+                br.replace_with("\n")
+
+            block_tags = [
+                'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                'li', 'tr', 'blockquote', 'article', 'section', 'header', 'footer'
+            ]
+            for tag in soup.find_all(block_tags):
+                tag.insert_after("\n")
+
+            text = soup.get_text(separator=" ", strip=False)
+
+            escaped_text = html.escape(text)
+
+            final_text = re.sub(
+                r'##LINK_START##(.*?)##TEXT_START##(.*?)##LINK_END##',
+                r'<a href="\1">\2</a>',
+                escaped_text
+            )
+            lines = []
+            for line in final_text.split('\n'):
+                clean_line = re.sub(r'\s+', ' ', line).strip()
+                if clean_line:
+                    lines.append(clean_line)
+
+            return '\n'.join(lines)
+        except Exception as e:
+            logger.warning(f"HTML parsing failed: {e}")
+            return html.escape(html_content)
 
     @staticmethod
     def decode_mime_header(header_value: str) -> str:
@@ -36,16 +102,16 @@ class Formatter:
     def format_telegram_message(email_data: dict) -> str:
         safe_sender = html.escape(email_data['sender'])
         safe_subject = html.escape(email_data['subject'])
-        safe_body = html.escape(email_data['body'])
+        body_text = email_data['body']
 
-        if len(safe_body) > 2000:
-            safe_body = safe_body[:2000] + "..."
+        if len(body_text) > 2000:
+            body_text = body_text[:2000] + "..."
 
         formatted_message = (
             f"<b>📧 New Email Received</b>\n"
             f"<b>From:</b> {safe_sender}\n"
             f"<b>Subject:</b> {safe_subject}\n\n"
-            f"{safe_body}"
+            f"{body_text}"
         )
 
         return formatted_message
