@@ -13,7 +13,7 @@ class Formatter:
             for part in msg.walk():
                 if part.get_content_type() == "text/html":
                     html_content = Formatter._decode_payload(part)
-                    return Formatter.clean_html(html_content)
+                    return Formatter._clean_html(html_content)
 
             for part in msg.walk():
                 if part.get_content_type() == "text/plain":
@@ -21,7 +21,7 @@ class Formatter:
         else:
             content = Formatter._decode_payload(msg)
             if msg.get_content_type() == "text/html":
-                return Formatter.clean_html(content)
+                return Formatter._clean_html(content)
 
             return html.escape(content)
 
@@ -34,7 +34,7 @@ class Formatter:
         return payload.decode(charset, errors='ignore')
 
     @staticmethod
-    def clean_html(html_content: str) -> str:
+    def _clean_html(html_content: str) -> str:
         try:
             soup = BeautifulSoup(html_content, "html.parser")
 
@@ -104,9 +104,6 @@ class Formatter:
         safe_subject = html.escape(email_data['subject'])
         body_text = email_data['body']
 
-        if len(body_text) > 2000:
-            body_text = body_text[:2000] + "..."
-
         formatted_message = (
             f"<b>📧 New Email Received</b>\n"
             f"<b>From:</b> {safe_sender}\n"
@@ -114,4 +111,28 @@ class Formatter:
             f"{body_text}"
         )
 
-        return formatted_message
+        return Formatter._split_message(formatted_message)
+
+    @staticmethod
+    def _split_message(text: str, max_length: int = 4096) -> list:
+        if len(text) <= max_length:
+            return [text]
+
+        parts = []
+        while text:
+            if len(text) <= max_length:
+                parts.append(text)
+                break
+
+            split_at = text.rfind('\n', 0, max_length)
+            if split_at == -1:
+                split_at = text.rfind(' ', 0, max_length)
+            if split_at == -1:
+                split_at = max_length
+
+            chunk = text[:split_at]
+            parts.append(chunk)
+
+            text = text[split_at:].lstrip()
+
+        return parts

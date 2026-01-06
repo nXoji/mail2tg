@@ -20,10 +20,19 @@ def main():
 
             if unseen_emails:
                 for email_data in unseen_emails:
-                    email = Formatter.format_telegram_message(email_data)
+                    messages = Formatter.format_telegram_message(email_data)
+                    all_sent = True
 
-                    if telegram_service.send_message(email):
+                    for i, msg_parts in enumerate(messages):
+                        if not telegram_service.send_message(msg_parts):
+                            logger.error(f"Failed to send part {i+1}/{len(messages)} of email {email_data['id']}")
+                            all_sent = False
+                            break
+
+                    if all_sent:
                         email_service.mark_as_read(email_data['id'])
+                    else:
+                        logger.warning(f"Email {email_data['id']} was not marked as read due to sending errors.")
 
         email_service.disconnect()
 
