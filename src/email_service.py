@@ -1,3 +1,4 @@
+import io
 import email
 import imaplib
 from config import Config
@@ -71,13 +72,44 @@ class EmailService:
             return None
 
         msg = email.message_from_bytes(msg_data[0][1])
+        attachments = self._process_attachments(msg)
 
         return {
             'id': email_id,
             'subject': Formatter.decode_mime_header(msg['Subject']),
             'sender': Formatter.decode_mime_header(msg['From']),
-            'body': Formatter.get_body(msg)
+            'body': Formatter.get_body(msg),
+            'attachments': attachments
         }
+
+    def _process_attachments(self, msg) -> List[dict]:
+        attachments = []
+        for part in msg.walk():
+            if part.get_content_maintype() == 'multipart':
+                continue
+
+            if part.get('Content-Disposition') is None:
+                continue
+
+            filename = part.get_filename()
+            if filename:
+                try:
+                    filename = Formatter.decode_mime_header(filename)
+                    file_data = part.get_payload(decode=True)
+
+                    if file_data:
+                        attachment_io = io.BytesIO(file_data)
+                        attachment_io.name = filename
+
+                        attachments.append({
+                            'filename': filename,
+                            'content': attachment_io
+                        })
+                except Exception as e:
+                    self.logger.error(f"Error processing attachment {filename}: {e}")
+                    continue
+
+        return attachments
 
     def mark_as_read(self, email_id: bytes):
         try:

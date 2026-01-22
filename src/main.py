@@ -29,6 +29,19 @@ def main():
                             all_sent = False
                             break
 
+                    if all_sent and email_data.get('attachments'):
+                        for attachment in email_data['attachments']:
+                            fname = attachment['filename']
+                            fcontent = attachment['content']
+
+                            logger.info(f"Sending attachment: {fname}")
+
+                            if not telegram_service.send_document(fname, fcontent):
+                                logger.error(f"Failed to send attachment: {fname}")
+                                all_sent = False
+
+                            fcontent.close()
+
                     if all_sent:
                         email_service.mark_as_read(email_data['id'])
                     else:
