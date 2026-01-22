@@ -14,7 +14,7 @@
 </div>
 
 # About
-**mail2tg** acts as a reliable bridge between your email and Telegram. It regularly checks your IMAP inbox for new unread messages and forwards them to your chat. Unlike simple forwarders, mail2tg cleans up messy HTML emails into readable text, preserves clickable links, and intelligently splits long messages that exceed Telegram's character limits. It ensures no data is lost by only marking emails as "Read" on the server after they have been successfully delivered.
+**mail2tg** acts as a reliable bridge between your email and Telegram. It regularly checks your IMAP inbox for new unread messages and forwards them **(along with file attachments)** to your chat. Unlike simple forwarders, mail2tg cleans up messy HTML emails into readable text, preserves clickable links, and intelligently splits long messages that exceed Telegram's character limits. It ensures no data is lost by only marking emails as "Read" on the server after they have been successfully delivered.
 
 # Installation
 ## Option 1: Docker (Recommended)
