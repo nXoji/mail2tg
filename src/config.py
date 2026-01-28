@@ -16,3 +16,16 @@ class Config:
 
     # email check interval in seconds
     CHECK_INTERVAL = int(getenv('CHECK_INTERVAL', 60))
+
+    # filtering configuration
+    ALLOWED_SENDERS = [
+        s.strip().lower()
+        for s in getenv('ALLOWED_SENDERS', '').split(',')
+        if s.strip()
+    ]
+
+    BLOCKED_SENDERS = [
+        s.strip().lower()
+        for s in getenv('BLOCKED_SENDERS', '').split(',')
+        if s.strip()
+    ]
