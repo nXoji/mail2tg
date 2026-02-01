@@ -2,7 +2,7 @@
   <img src="https://cdn2.iconfinder.com/data/icons/email-114/100/email-forward-2-email-mail-action-letter-envelope-forward-resend-512.png" width="25%">
   <h1>mail2tg</h1>
   <p>
-    <strong>mail2tg is a lightweight and reliable bot that forwards incoming emails from your IMAP mailbox directly to Telegram.</strong>
+    <strong>Your email inbox, delivered straight to Telegram.</strong>
   </p>
   <p>
 
@@ -14,7 +14,15 @@
 </div>
 
 # About
-**mail2tg** acts as a reliable bridge between your email and Telegram. It regularly checks your IMAP inbox for new unread messages and forwards them **(along with file attachments)** to your chat. Unlike simple forwarders, mail2tg cleans up messy HTML emails into readable text, preserves clickable links, and intelligently splits long messages that exceed Telegram's character limits. It ensures no data is lost by only marking emails as "Read" on the server after they have been successfully delivered.
+**mail2tg** is a lightweight bridge designed to bring your IMAP mailbox into Telegram. It focuses on readability and reliability, transforming messy automated emails into clean Telegram messages while ensuring that no critical notification is ever missed due to silent inbox delivery.
+
+# Key Features
+* **📎 Attachment Support**: Automatically forwards files and documents alongside email text.
+* **🧹 HTML Cleaning**: Transforms cluttered HTML emails into clean, readable text.
+* **🔗 Link Preservation**: Keeps all clickable links functional in the forwarded message.
+* **✂️ Smart Splitting**: Automatically divides long emails to comply with Telegram's character limits.
+* **🛡️ Reliable Delivery**: Emails are marked as "Read" only after successful delivery, ensuring no data loss.
+* **🚫 Sender Filtering**: Support for Whitelists and Blacklists to control which emails get forwarded.
 
 # Installation
 ## Option 1: Docker (Recommended)
@@ -63,6 +71,8 @@ Configure the application by editing the `.env` file. Below are the available en
 | `TELEGRAM_BOT_TOKEN` | Token received from @BotFather | `123456:ABC-DEF...` |
 | `TELEGRAM_CHAT_ID` | Your numeric Telegram Chat ID (get it from bots like @userinfobot) | `123456789` |
 | `CHECK_INTERVAL` | Interval between email checks in seconds (default: 60) | `60` |
+| `ALLOWED_SENDERS` | Optional: comma-separated list of allowed emails | `friend@gmail.com, boss@work.com` |
+| `BLOCKED_SENDERS` | Optional: comma-separated list of blocked emails | `spam@bad.com, marketing@ads.com` |
 
 # License
 mail2tg is open source software under the [MIT License](https://opensource.org/license/mit/).
