@@ -1,3 +1,4 @@
+import re
 import io
 import email
 import imaplib
@@ -15,6 +16,8 @@ class EmailService:
         self.IMAP_PORT = Config.IMAP_PORT
         self.EMAIL_ADDRESS = Config.EMAIL_ADDRESS
         self.APP_PASSWORD = Config.APP_PASSWORD
+        self.ALLOWED_SENDERS = Config.ALLOWED_SENDERS
+        self.BLOCKED_SENDERS = Config.BLOCKED_SENDERS
 
     def connect(self) -> bool:
         try:
@@ -46,7 +49,6 @@ class EmailService:
                 self.logger.error("IMAP search failed")
                 return []
 
-
             if not email_ids[0]:
                 self.logger.info("No unseen emails found")
                 return []
@@ -54,16 +56,36 @@ class EmailService:
             emails = []
             for email_id in email_ids[0].split():
                 email_data = self._fetch_email(email_id)
-                if email_data:
-                    emails.append(email_data)
+                if not email_data:
+                    continue
+
+                if not self._is_allowed_sender(email_data['sender']):
+                    self.mark_as_read(email_id)
+                    continue
+
+                emails.append(email_data)
 
             if emails:
-                self.logger.info(f"Found {len(emails)} new email(s)")
+                self.logger.info(f"Found {len(emails)} new email(s) after filtering")
 
             return emails
         except Exception as e:
             self.logger.error(f"Failed to fetch unseen emails: {e}")
             return []
+
+    def _is_allowed_sender(self, sender: str) -> bool:
+        match = re.search(r'[\w\.-]+@[\w\.-]+', sender)
+        email_address = match.group(0).lower() if match else sender.lower()
+
+        if Config.BLOCKED_SENDERS and email_address in Config.BLOCKED_SENDERS:
+            self.logger.info(f"Email from <{email_address}> blocked by BLOCKED_SENDERS list")
+            return False
+
+        if Config.ALLOWED_SENDERS and email_address not in Config.ALLOWED_SENDERS:
+            self.logger.info(f"Email from <{email_address}> skipped (not in ALLOWED_SENDERS)")
+            return False
+
+        return True
 
     def _fetch_email(self, email_id: bytes) -> Optional[dict]:
         status, msg_data = self.mail.fetch(email_id, '(BODY.PEEK[])')
