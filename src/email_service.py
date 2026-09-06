@@ -1,6 +1,7 @@
 import re
 import io
 import email
+import email.utils
 import imaplib
 from config import Config
 from formatter import Formatter
@@ -74,8 +75,12 @@ class EmailService:
             return []
 
     def _is_allowed_sender(self, sender: str) -> bool:
-        match = re.search(r'[\w\.-]+@[\w\.-]+', sender)
-        email_address = match.group(0).lower() if match else sender.lower()
+        _, email_address = email.utils.parseaddr(sender)
+        email_address = email_address.strip().lower()
+
+        if not email_address:
+            match = re.search(r'[\w\.\+\-]+@[\w\.\-]+', sender)
+            email_address = match.group(0).lower() if match else sender.strip().lower()
 
         if Config.BLOCKED_SENDERS and email_address in Config.BLOCKED_SENDERS:
             self.logger.info(f"Email from <{email_address}> blocked by BLOCKED_SENDERS list")

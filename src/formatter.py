@@ -1,5 +1,6 @@
 import re
 import html
+import uuid
 from email.header import decode_header
 from bs4 import BeautifulSoup
 from logger import get_logger
@@ -13,25 +14,49 @@ class Formatter:
             for part in msg.walk():
                 if part.get_content_type() == "text/html":
                     html_content = Formatter._decode_payload(part)
-                    return Formatter._clean_html(html_content)
+                    if html_content and html_content.strip():
+                        cleaned = Formatter._clean_html(html_content)
+                        if cleaned and cleaned.strip():
+                            return cleaned
 
             for part in msg.walk():
                 if part.get_content_type() == "text/plain":
-                    return html.escape(Formatter._decode_payload(part))
+                    text_content = Formatter._decode_payload(part)
+                    if text_content and text_content.strip():
+                        return html.escape(text_content)
         else:
             content = Formatter._decode_payload(msg)
             if msg.get_content_type() == "text/html":
-                return Formatter._clean_html(content)
+                cleaned = Formatter._clean_html(content)
+                if cleaned and cleaned.strip():
+                    return cleaned
 
-            return html.escape(content)
+            if content and content.strip():
+                return html.escape(content)
 
         return "(No text content)"
 
     @staticmethod
     def _decode_payload(part) -> str:
         payload = part.get_payload(decode=True)
-        charset = part.get_content_charset() or 'utf-8'
-        return payload.decode(charset, errors='ignore')
+        if payload is None:
+            raw = part.get_payload()
+            return raw if isinstance(raw, str) else ""
+
+        charset = part.get_content_charset()
+        if charset:
+            try:
+                return payload.decode(charset, errors='replace')
+            except (LookupError, ValueError):
+                pass
+
+        for enc in ('utf-8', 'cp1251', 'latin-1'):
+            try:
+                return payload.decode(enc)
+            except (UnicodeDecodeError, LookupError, ValueError):
+                continue
+
+        return payload.decode('utf-8', errors='replace')
 
     @staticmethod
     def _clean_html(html_content: str) -> str:
@@ -41,17 +66,17 @@ class Formatter:
             for tag in soup(["script", "style", "meta", "head", "title", "link"]):
                 tag.decompose()
 
+            links = []
             for a in soup.find_all("a", href=True):
                 text = a.get_text(strip=True)
-                href = a["href"]
+                href = a["href"].strip()
 
                 if not href or href.startswith(("#", "javascript:")) or not text:
                     continue
 
-                safe_text = html.escape(text)
-                safe_href = html.escape(href)
-
-                a.replace_with(f"##LINK_START##{safe_href}##TEXT_START##{safe_text}##LINK_END##")
+                token = f"__LINK_PLACEHOLDER_{uuid.uuid4().hex}__"
+                links.append((token, href, text))
+                a.replace_with(token)
 
             for br in soup.find_all("br"):
                 br.replace_with("\n")
@@ -67,13 +92,16 @@ class Formatter:
 
             escaped_text = html.escape(text)
 
-            final_text = re.sub(
-                r'##LINK_START##(.*?)##TEXT_START##(.*?)##LINK_END##',
-                r'<a href="\1">\2</a>',
-                escaped_text
-            )
+            for token, href, link_text in links:
+                safe_href = html.escape(href, quote=True)
+                safe_link_text = html.escape(link_text)
+                escaped_text = escaped_text.replace(
+                    token,
+                    f'<a href="{safe_href}">{safe_link_text}</a>'
+                )
+
             lines = []
-            for line in final_text.split('\n'):
+            for line in escaped_text.split('\n'):
                 clean_line = re.sub(r'\s+', ' ', line).strip()
                 if clean_line:
                     lines.append(clean_line)
@@ -88,21 +116,29 @@ class Formatter:
         if not header_value:
             return "(No Value)"
 
-        decoded_parts = decode_header(header_value)
+        try:
+            decoded_parts = decode_header(header_value)
+        except Exception as e:
+            logger.warning(f"MIME header decode failed for '{header_value}': {e}")
+            return str(header_value)
+
         decoded_string = ''
         for part, encoding in decoded_parts:
             if isinstance(part, bytes):
-                encoding = encoding or 'utf-8'
-                decoded_string += part.decode(encoding, errors='ignore')
+                enc = encoding or 'utf-8'
+                try:
+                    decoded_string += part.decode(enc, errors='replace')
+                except (LookupError, ValueError):
+                    decoded_string += part.decode('utf-8', errors='replace')
             else:
-                decoded_string += part
+                decoded_string += str(part)
         return decoded_string
 
     @staticmethod
-    def format_telegram_message(email_data: dict) -> str:
-        safe_sender = html.escape(email_data['sender'])
-        safe_subject = html.escape(email_data['subject'])
-        body_text = email_data['body']
+    def format_telegram_message(email_data: dict) -> list:
+        safe_sender = html.escape(email_data.get('sender') or '(No Sender)')
+        safe_subject = html.escape(email_data.get('subject') or '(No Subject)')
+        body_text = email_data.get('body') or '(No text content)'
 
         formatted_message = (
             f"<b>📧 New Email Received</b>\n"
