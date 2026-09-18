@@ -1,3 +1,5 @@
+import re
+import html
 import time
 import requests
 from config import Config
@@ -10,21 +12,28 @@ class TelegramService:
         self.API_URL = f"https://api.telegram.org/bot{self.BOT_TOKEN}"
         self.logger = get_logger(__name__)
 
-    def send_message(self, message: str) -> bool:
+    def send_message(self, message: str, parse_mode: str = 'HTML') -> bool:
         url = f"{self.API_URL}/sendMessage"
         payload = {
             'chat_id': self.CHAT_ID,
-            'text': message,
-            'parse_mode': 'HTML'
+            'text': message
         }
-        return self._make_request(url, data=payload)
+        if parse_mode:
+            payload['parse_mode'] = parse_mode
 
-    def send_document(self, filename: str, file_obj: bytes) -> bool:
+        if not self._make_request(url, data=payload):
+            if parse_mode:
+                self.logger.warning("Failed sending message with HTML, falling back to plain text")
+                plain_text = html.unescape(re.sub(r'<[^>]+>', '', message))
+                return self.send_message(plain_text, parse_mode=None)
+            return False
+
+        return True
+
+    def send_document(self, filename: str, file_obj) -> bool:
         url = f"{self.API_URL}/sendDocument"
         data = {'chat_id': self.CHAT_ID}
-
         files = {'document': (filename, file_obj)}
-
         return self._make_request(url, data=data, files=files, timeout=45)
 
     def _make_request(self, url: str, data: dict = None, files: dict = None, timeout: int = 20) -> bool:
@@ -38,6 +47,7 @@ class TelegramService:
                             val[1].seek(0)
 
                 r = requests.post(url, data=data, files=files, timeout=timeout)
+                time.sleep(0.5)
 
                 if r.ok:
                     self.logger.info(f"Telegram API: {method_name} success")
