@@ -1,4 +1,5 @@
-import time
+import signal
+import threading
 from config import Config
 from email_service import EmailService
 from telegram_service import TelegramService
@@ -8,18 +9,30 @@ from logger import setup_logging, get_logger
 setup_logging()
 logger = get_logger(__name__)
 
+shutdown_event = threading.Event()
+
+def signal_handler(signum, frame):
+    logger.info("Shutdown signal received, stopping...")
+    shutdown_event.set()
+
 def main():
     logger.info("Starting mail2tg...")
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     email_service = EmailService()
     telegram_service = TelegramService()
 
-    while True:
+    while not shutdown_event.is_set():
         if email_service.connect():
             unseen_emails = email_service.get_unseen_emails()
 
             if unseen_emails:
                 for email_data in unseen_emails:
+                    if shutdown_event.is_set():
+                        break
+
                     messages = Formatter.format_telegram_message(email_data)
                     all_sent = True
 
@@ -42,14 +55,15 @@ def main():
 
                             fcontent.close()
 
-                    if all_sent:
-                        email_service.mark_as_read(email_data['id'])
-                    else:
-                        logger.warning(f"Email {email_data['id']} was not marked as read due to sending errors.")
+                    if not all_sent:
+                        logger.warning(f"Email {email_data['id']} had errors during sending. Marking as read to prevent loop.")
+                    email_service.mark_as_read(email_data['id'])
 
-        email_service.disconnect()
+            email_service.disconnect()
 
-        time.sleep(Config.CHECK_INTERVAL)
+        shutdown_event.wait(Config.CHECK_INTERVAL)
+
+    logger.info("mail2tg stopped.")
 
 if __name__ == "__main__":
     main()
